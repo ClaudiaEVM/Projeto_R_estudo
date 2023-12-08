@@ -1,0 +1,91 @@
+---
+title: "Predict with cross validation"
+output: html_document
+date: "2023-12-08"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Predict with cross validation the classification of the way in which the exercises are performed
+
+The data sent for analysis of the variable class prediction, which contains the classification of the way in which the exercises are performed. These are five classes: 'A', 'B', 'C', 'D', 'E'. The data has many variations with more than 90% NA, so these variables were removed from the model, as they did not bring significant value to the model. As the test data had the entire variable class missing, cross-validation was necessary on the training data, in addition, in the test data available we did not have the appropriate percentage of division of the bases to carry out the modeling, which would be around 70%/ 30% training and testing data respectively.
+The random forest model from the Caret package in R was used for prediction and was highly accurate without 99% cross-validation.
+```{programação}
+library(AppliedPredictiveModeling)
+library(caret)
+library(kernlab)
+library(Hmisc)
+library(AppliedPredictiveModeling)
+library(rattle)
+library(pgmm)
+library(gbm)
+library(randomForest)
+library(dplyr)
+library(RANN)
+
+
+dados_teste <- read.csv("pml-testing.csv")
+dados_training <- read.csv("pml-training.csv")
+#19622
+
+# retirar as veriáveis que têm mais de 60% de missing do modelo de predição
+
+# segundo teste trabalhando com os dados de teste e treino conjunto
+dados_teste["in_teste"] <-rep(1,20)
+dados_training["in_teste"] <-rep(0)
+dados_all<-bind_rows(dados_teste, dados_training)
+#retirando a variável de identificação dos dados
+dados_allA <-dados_all[,-1]
+# tranformando a variável resposta em fator
+dados_allA$classe <- as.factor(dados_allA$classe)
+#retirando variáveis que tem resposta unitárias para dados todos - não tem nenhuma variável assim
+cont_uni_all <- apply(dados_allA,2,function(x)length(unique(x)))
+pos_all <-  which(cont_uni_all == 1)
+#dados_all2 <- dados_allA[-pos_all]
+
+
+as.numeric(dados_training$kurtosis_roll_belt)
+
+vet_remove <- c('kurtosis_roll_belt',"kurtosis_picth_belt",'kurtosis_yaw_belt',"skewness_roll_belt", 'skewness_roll_belt.1','skewness_yaw_belt','min_yaw_belt','amplitude_yaw_belt'
+                ,'kurtosis_roll_arm', 'kurtosis_picth_arm', 'kurtosis_yaw_arm', 'skewness_roll_arm','skewness_pitch_arm', 'skewness_yaw_arm','kurtosis_roll_dumbbell',
+                'kurtosis_picth_dumbbell','kurtosis_yaw_dumbbell' ,'skewness_roll_dumbbell','skewness_pitch_dumbbell','skewness_yaw_dumbbell', 'max_yaw_dumbbell','min_yaw_dumbbell',
+                'amplitude_yaw_dumbbell','kurtosis_roll_forearm', 'kurtosis_picth_forearm','kurtosis_yaw_forearm' ,'skewness_roll_forearm','skewness_pitch_forearm',  'skewness_yaw_forearm',
+                'max_yaw_forearm' ,'min_yaw_forearm','amplitude_yaw_forearm','max_yaw_belt'  )
+
+dados_allA[vet_remove] <- apply(dados_allA[vet_remove],2,as.numeric)
+
+
+# Percentual de dados faltantes
+NAs <- round(colSums(is.na(dados_allA))*100/nrow(dados_allA), 2)
+NAs[NAs>0]
+#retirando as variáveis que tem mais de 30% de NA
+del <- names(NAs[NAs>30])
+dados_all3 <- select(dados_allA, -del)
+
+
+dados_training3 <- dplyr::filter(dados_all3, dados_all3$in_teste==0)
+dados_testing3 <- dplyr::filter(dados_all3, dados_all3$in_teste==1)
+dados_testing4 <- subset(dados_testing3, select = -c(in_teste))
+dados_training4 <- subset(dados_training3, select = -c(in_teste))
+
+
+
+train_control<- trainControl(method="cv", number=10, savePredictions = TRUE)
+
+model<- train(classe~., data=dados_training4, trControl=train_control, method="rf")
+model$pred
+pred1<- predict(model,dados_testing4)
+confusionMatrix(dados_testing4$classe,pred1)
+
+
+dados_testing4$pred<- pred1
+dados_testing4$X<-dados_teste$X
+library("gridExtra")
+grid.table(dados_testing4[,c("X","pred")])
+
+```
+
+
+
